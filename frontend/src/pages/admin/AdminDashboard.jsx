@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-const STORAGE_KEY = 'localAdminUsers';
-const defaultUsers = [];
-
-const loadUsers = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || JSON.stringify(defaultUsers));
-const saveUsers = (users) => localStorage.setItem(STORAGE_KEY, JSON.stringify(users));
-
+import { adminService } from '../../services/api';
 const S = {
     page: { minHeight: '100vh', backgroundColor: '#fafafa', fontFamily: 'system-ui, -apple-system, sans-serif', color: '#111' },
     header: { backgroundColor: '#fff', borderBottom: '1px solid #eee', padding: '14px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 10 },
@@ -54,63 +48,63 @@ const AdminDashboard = () => {
     const fetchUsers = useCallback(async () => {
         try {
             setLoading(true);
-            setUsers(loadUsers());
+            const response = await adminService.getAll();
+            setUsers(response.data);
         } catch {
             setUsers([]);
-        } finally { setLoading(false); }
-    }, []);
+        } finally {
+            setLoading(false);
+        }
+        }, []);
 
     useEffect(() => { if (!adminToken) { navigate('/admin/login'); return; } fetchUsers(); }, [adminToken, navigate, fetchUsers]);
 
     const handleToggleStatus = async (user) => {
         try {
-            setUsers(prev => {
-                const next = prev.map(u => u.id === user.id ? { ...u, isActive: !u.isActive } : u);
-                saveUsers(next);
-                return next;
-            });
-        } catch { alert('Failed to update status'); }
-    };
+        await adminService.updateUser(
+        user.id,
+        !user.isActive
+        );
+        await fetchUsers();
+        } catch {
+            alert('Failed to update status');
+        }
+        };
+
 
     const handleCreateUser = async (e) => {
         e.preventDefault();
         setCreateError('');
         setCreateLoading(true);
+
         try {
-            const user = {
-                id: Date.now(),
-                username: newUser.username,
-                storeName: newUser.storeName,
-                isActive: true,
-                passwordSet: false,
-                createdAt: new Date().toISOString(),
-                lastLogin: null,
-                _count: { products: 0, sales: 0 }
-            };
-            setUsers(prev => {
-                const next = [user, ...prev];
-                saveUsers(next);
-                return next;
-            });
+            await adminService.create(newUser);
+            await fetchUsers();
+
             setShowCreate(false);
             setNewUser({ username: '', storeName: '' });
-        } catch { setCreateError('Failed to create user'); }
-        finally { setCreateLoading(false); }
-    };
+        } catch {
+            setCreateError('Failed to create user');
+        } finally {
+            setCreateLoading(false);
+        }
+        };
 
     const handleDeleteUser = async () => {
         if (!deleteTarget) return;
+
         setDeleteLoading(true);
+
         try {
-            setUsers(prev => {
-                const next = prev.filter(u => u.id !== deleteTarget.id);
-                saveUsers(next);
-                return next;
-            });
+            await adminService.delete(deleteTarget.id);
+            await fetchUsers();
             setDeleteTarget(null);
-        } catch { alert('Failed to delete user'); }
-        finally { setDeleteLoading(false); }
-    };
+        } catch {
+            alert('Failed to delete user');
+        } finally {
+            setDeleteLoading(false);
+        }
+        };
 
     const filtered = users.filter(u => {
         if (!search) return true;

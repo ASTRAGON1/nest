@@ -1,174 +1,107 @@
-const currentUser = () => JSON.parse(localStorage.getItem('user') || 'null');
+import axios from 'axios';
 
-const response = (data) => Promise.resolve({ data });
+const api = axios.create({
+    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3000',
+});
 
-const emptyReport = {
-    sales: {
-        summary: { totalSales: 0, totalRevenue: 0, totalProfit: 0, averageOrderValue: 0 },
-        paymentMethods: [],
-        bestSellers: []
-    },
-    inventory: {
-        summary: { totalItems: 0, totalValue: 0, lowStock: 0, outOfStock: 0 },
-        products: []
-    },
-    profit: {
-        summary: { totalRevenue: 0, totalCost: 0, netProfit: 0, margin: 0 },
-        byCategory: [],
-        mostProfitable: []
-    }
-};
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
 
-const routeData = (url) => {
-    if (url === '/dashboard/summary') {
-        return {
-            revenue: 0,
-            salesCount: 0,
-            totalProducts: 0,
-            lowStockProducts: [],
-            recentSales: [],
-            unpaidCount: 0,
-            totalDue: 0
-        };
-    }
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
 
-    if (url === '/dashboard/analytics') {
-        return {
-            metrics: { totalSales: 0, totalRevenue: 0, avgOrderValue: 0 },
-            salesTrend: [],
-            topProducts: []
-        };
-    }
+  return config;
+});
 
-    if (url === '/reports/sales') return emptyReport.sales;
-    if (url === '/reports/inventory') return emptyReport.inventory;
-    if (url === '/reports/profit') return emptyReport.profit;
-    if (url === '/settings') return currentUser() || {};
-    if (url === '/notifications/unread-count') return { count: 0 };
-    if (url === '/products/low-stock') return [];
-    if (url === '/products/data/export') return [];
-
-    if (
-        url === '/products' ||
-        url === '/categories' ||
-        url === '/sales' ||
-        url === '/customers' ||
-        url === '/suppliers' ||
-        url === '/expenses' ||
-        url === '/returns' ||
-        url === '/notifications'
-    ) {
-        return [];
-    }
-
-    if (url === '/expenses/summary') {
-        return { total: 0, count: 0, byCategory: [] };
-    }
-
-    if (url.includes('/history') || url.includes('/purchases')) return [];
-
-    return null;
-};
-
-const api = {
-    get: async (url) => response(routeData(url)),
-    post: async (url, data = {}) => {
-        if (url === '/auth/login' || url === '/auth/set-password') {
-            const user = { id: 1, username: data.username || 'demo', ...currentUser() };
-            return response({ token: 'local-frontend-token', user });
-        }
-
-        if (url === '/auth/check-username') {
-            return response({ exists: true, passwordSet: true });
-        }
-
-        if (url === '/sales') {
-            return response({
-                id: Date.now(),
-                receiptNumber: `LOCAL-${Date.now()}`,
-                createdAt: new Date().toISOString(),
-                ...data
-            });
-        }
-
-        return response({ id: Date.now(), ...data });
-    },
-    put: async (_url, data = {}) => response(data),
-    patch: async (_url, data = {}) => response(data),
-    delete: async () => response({ success: true })
-};
+export const adminService = {
+    login: async (email, password) => api.post(('/auth/loginAdmin'), {email, password}),
+    getAll: async () => api.get(('/users')),
+    create: async (data) => api.post(('/users'), data),
+    updateUser: async (id, isActive) => api.patch((`/users/${id}/status`), {isActive}),
+    delete: async (id) => api.delete(`/users/${id}`),
+}
 
 export const authService = {
-    login: async (username, password) => (await api.post('/auth/login', { username, password })).data,
-    checkUsername: async (username) => (await api.post('/auth/check-username', { username })).data,
-    setPassword: async (username, password) => (await api.post('/auth/set-password', { username, password })).data,
+    // TODO: Connect this to POST /auth/login on the backend.
+    login: async (username, password) => api.post('/auth/login', { username, password }),
+
+    // TODO: Add this endpoint to the backend or remove this function if it is not needed.
+    checkUsername: async (username) => api.post('/auth/check-username', { username }),
+
+    // TODO: Add this endpoint to the backend or remove this function if it is not needed.
+    setPassword: async (username, password) => api.post('/auth/set-password', { username, password }),
 };
 
 export const productService = {
-    getAll: async (params) => (await api.get('/products', { params })).data,
-    getById: async (id) => (await api.get(`/products/${id}`)).data,
-    create: async (data) => (await api.post('/products', data)).data,
-    update: async (id, data) => (await api.put(`/products/${id}`, data)).data,
-    delete: async (id) => (await api.delete(`/products/${id}`)).data,
-    getLowStock: async () => (await api.get('/products/low-stock')).data
+    // TODO: Connect these product methods to real backend product endpoints.
+    getAll: async (params) => api.get('/products', { params }),
+    getById: async (id) => api.get(`/products/${id}`),
+    create: async (data) => api.post('/products', data),
+    update: async (id, data) => api.put(`/products/${id}`, data),
+    delete: async (id) => api.delete(`/products/${id}`),
+    getLowStock: async () => api.get('/products/low-stock'),
 };
 
 export const categoryService = {
-    getAll: async () => (await api.get('/categories')).data,
-    getById: async (id) => (await api.get(`/categories/${id}`)).data,
-    create: async (data) => (await api.post('/categories', data)).data,
-    update: async (id, data) => (await api.put(`/categories/${id}`, data)).data,
-    delete: async (id) => (await api.delete(`/categories/${id}`)).data,
+    // TODO: Connect these category methods to real backend category endpoints.
+    getAll: async () => api.get('/categories'),
+    getById: async (id) => api.get(`/categories/${id}`),
+    create: async (data) => api.post('/categories', data),
+    update: async (id, data) => api.put(`/categories/${id}`, data),
+    delete: async (id) => api.delete(`/categories/${id}`),
 };
 
 export const salesService = {
-    getAll: async (params) => (await api.get('/sales', { params })).data,
-    getById: async (id) => (await api.get(`/sales/${id}`)).data,
-    create: async (data) => (await api.post('/sales', data)).data,
-    getStats: async () => ({ totalSales: 0, totalRevenue: 0 }),
-    delete: async (id) => (await api.delete(`/sales/${id}`)).data
+    // TODO: Connect these sales methods to real backend sales endpoints.
+    getAll: async (params) => api.get('/sales', { params }),
+    getById: async (id) => api.get(`/sales/${id}`),
+    create: async (data) => api.post('/sales', data),
+    getStats: async () => api.get('/sales/stats'),
+    delete: async (id) => api.delete(`/sales/${id}`),
 };
 
 export const reportService = {
-    getSales: async (params) => (await api.get('/reports/sales', { params })).data,
-    getInventory: async (params) => (await api.get('/reports/inventory', { params })).data,
-    getProfit: async (params) => (await api.get('/reports/profit', { params })).data
+    // TODO: Connect these report methods to real backend report endpoints.
+    getSales: async (params) => api.get('/reports/sales', { params }),
+    getInventory: async (params) => api.get('/reports/inventory', { params }),
+    getProfit: async (params) => api.get('/reports/profit', { params }),
 };
 
 export const settingsService = {
-    getSettings: async () => (await api.get('/settings')).data,
-    updateStore: async (data) => {
-        const user = currentUser() || {};
-        localStorage.setItem('user', JSON.stringify({ ...user, ...data }));
-        return data;
-    },
-    changePassword: async () => ({ success: true })
+    // TODO: Connect these settings methods to real backend settings endpoints.
+    getSettings: async () => api.get('/settings'),
+    updateStore: async (data) => api.put('/settings/store', data),
+    changePassword: async (data) => api.patch('/settings/password', data),
 };
 
 export const dashboardService = {
-    getSummary: async (params) => (await api.get('/dashboard/summary', { params })).data,
-    getAnalytics: async (params) => (await api.get('/dashboard/analytics', { params })).data,
-    getRevenue: async () => ({ revenue: 0 }),
-    getProfit: async () => ({ profit: 0 }),
-    getSalesTrend: async () => [],
-    getCategoryStats: async () => []
+    // TODO: Connect these dashboard methods to real backend dashboard endpoints.
+    getSummary: async (params) => api.get('/dashboard/summary', { params }),
+    getAnalytics: async (params) => api.get('/dashboard/analytics', { params }),
+    getRevenue: async () => api.get('/dashboard/revenue'),
+    getProfit: async () => api.get('/dashboard/profit'),
+    getSalesTrend: async () => api.get('/dashboard/sales-trend'),
+    getCategoryStats: async () => api.get('/dashboard/category-stats'),
 };
 
 export const customerService = {
-    getAll: async (params) => (await api.get('/customers', { params })).data,
-    getById: async (id) => (await api.get(`/customers/${id}`)).data,
-    create: async (data) => (await api.post('/customers', data)).data,
-    update: async (id, data) => (await api.put(`/customers/${id}`, data)).data,
-    delete: async (id) => (await api.delete(`/customers/${id}`)).data,
-    getPurchases: async (id) => (await api.get(`/customers/${id}/purchases`)).data
+    // TODO: Connect these customer methods to real backend customer endpoints.
+    getAll: async (params) => api.get('/customers', { params }),
+    getById: async (id) => api.get(`/customers/${id}`),
+    create: async (data) => api.post('/customers', data),
+    update: async (id, data) => api.put(`/customers/${id}`, data),
+    delete: async (id) => api.delete(`/customers/${id}`),
+    getPurchases: async (id) => api.get(`/customers/${id}/purchases`),
 };
 
 export const supplierService = {
-    getAll: async (params) => (await api.get('/suppliers', { params })).data,
-    getById: async (id) => (await api.get(`/suppliers/${id}`)).data,
-    create: async (data) => (await api.post('/suppliers', data)).data,
-    update: async (id, data) => (await api.put(`/suppliers/${id}`, data)).data,
-    delete: async (id) => (await api.delete(`/suppliers/${id}`)).data
+    // TODO: Connect these supplier methods to real backend supplier endpoints.
+    getAll: async (params) => api.get('/suppliers', { params }),
+    getById: async (id) => api.get(`/suppliers/${id}`),
+    create: async (data) => api.post('/suppliers', data),
+    update: async (id, data) => api.put(`/suppliers/${id}`, data),
+    delete: async (id) => api.delete(`/suppliers/${id}`),
 };
 
 export default api;

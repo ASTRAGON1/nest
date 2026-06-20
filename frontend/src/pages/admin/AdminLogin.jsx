@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { adminService } from '../../services/api';
 
 const AdminLogin = () => {
     const navigate = useNavigate();
@@ -11,9 +12,23 @@ const AdminLogin = () => {
         e.preventDefault();
         setError('');
         setLoading(true);
+
         try {
-            localStorage.setItem('adminToken', 'local-admin-token');
-            localStorage.setItem('adminUser', JSON.stringify({ username: form.username || 'admin' }));
+            const response = await adminService.login(
+                form.username,
+                form.password
+            );
+
+            const token = response.data.access_token;
+
+            localStorage.setItem('adminToken', token);
+            localStorage.setItem('token', token);
+
+            localStorage.setItem(
+                'adminUser',
+                JSON.stringify(response.data.user || { username: form.username })
+            );
+
             navigate('/admin/dashboard');
         } catch (err) {
             setError('Invalid credentials');
