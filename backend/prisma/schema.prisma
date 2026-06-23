@@ -1,0 +1,265 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client"
+  output          = "../src/generated/prisma"
+  moduleFormat  = "cjs"
+}
+
+
+// User model (store owner)
+model User {
+  id           Int       @id @default(autoincrement())
+  username     String    @unique
+  password     String?
+  storeName    String?
+  storeAddress String?
+  storePhone   String?
+  storeEmail   String?
+  storeICE     String?
+  storeLogo    String?
+  isActive     Boolean   @default(true)
+  passwordSet  Boolean   @default(false)
+  createdAt    DateTime  @default(now())
+  lastLogin    DateTime?
+  updatedAt    DateTime  @default(now()) @updatedAt
+
+  products      Product[]
+  categories    Category[]
+  sales         Sale[]
+  returns       Return[]
+  customers     Customer[]
+  expenses      Expense[]
+  suppliers     Supplier[]
+  loginHistory  LoginHistory[]
+  notifications Notification[]
+}
+
+// Notification model
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  type      String // low_stock, unpaid_sale, expense_reminder
+  title     String
+  message   String
+  data      Json? // additional data
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, read])
+  @@index([createdAt])
+}
+
+// Product model
+model Product {
+  id            Int      @id @default(autoincrement())
+  name          String
+  brand         String
+  categoryId    Int
+  purchasePrice Float
+  sellingPrice  Float
+  quantity      Int
+  description   String?
+  imageUrl      String?
+  minStockLevel Int      @default(5)
+  supplierId    Int?
+  userId        Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  category       Category         @relation(fields: [categoryId], references: [id])
+  user           User             @relation(fields: [userId], references: [id])
+  supplier       Supplier?        @relation(fields: [supplierId], references: [id])
+  saleItems      SaleItem[]
+  productHistory ProductHistory[]
+
+  @@index([userId])
+  @@index([categoryId])
+}
+
+// ProductHistory model (for tracking changes)
+model ProductHistory {
+  id        Int      @id @default(autoincrement())
+  productId Int
+  action    String // created, updated, stock_added, stock_reduced, deleted
+  field     String? // which field changed
+  oldValue  String?
+  newValue  String?
+  quantity  Int? // for stock changes
+  userId    Int
+  createdAt DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([createdAt])
+}
+
+// Sale model
+model Sale {
+  id            Int      @id @default(autoincrement())
+  receiptNumber String   @unique
+  totalAmount   Float
+  subtotal      Float? // before tax
+  taxRate       Float?   @default(0) // percentage
+  taxAmount     Float?   @default(0)
+  paymentMethod String
+  saleDate      DateTime @default(now())
+  userId        Int
+  customerId    Int?
+  temporaryCustomer String?
+  createdAt     DateTime @default(now())
+  amountPaid    Float    @default(0)
+  amountDue     Float    @default(0)
+  paymentStatus String   @default("unpaid") // paid, partially_paid, unpaid
+
+  user      User       @relation(fields: [userId], references: [id])
+  customer  Customer?  @relation(fields: [customerId], references: [id])
+  saleItems SaleItem[]
+  returns   Return[]
+
+  @@index([userId, saleDate])
+  @@index([paymentStatus])
+}
+
+// Return model (for refunds)
+model Return {
+  id           Int      @id @default(autoincrement())
+  saleId       Int?
+  reason       String
+  refundAmount Float
+  refundMethod String
+  processedBy  Int
+  userId       Int      @default(1) // Default for migration, should be required
+  createdAt    DateTime @default(now())
+
+  user        User         @relation(fields: [userId], references: [id])
+  sale        Sale?        @relation(fields: [saleId], references: [id], onDelete: SetNull)
+  returnItems ReturnItem[]
+
+  @@index([saleId])
+  @@index([userId])
+}
+
+// ReturnItem model
+model ReturnItem {
+  id        Int @id @default(autoincrement())
+  returnId  Int
+  productId Int
+  quantity  Int
+
+  return Return @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@index([returnId])
+}
+
+// SaleItem model (products in each sale)
+model SaleItem {
+  id          Int      @id @default(autoincrement())
+  saleId      Int
+  productId   Int
+  productName String
+  brand       String
+  quantity    Int
+  unitPrice   Float
+  subtotal    Float
+  createdAt   DateTime @default(now())
+
+  sale    Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([saleId])
+}
+
+// Category model
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String
+  createdAt DateTime @default(now())
+  userId    Int?
+
+  user     User?     @relation(fields: [userId], references: [id])
+  products Product[]
+
+  @@unique([name, userId])
+}
+
+// Customer model (clients of the store)
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String
+  address   String?
+  email     String?
+  notes     String?
+  userId    Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  user  User   @relation(fields: [userId], references: [id])
+  sales Sale[]
+
+  @@unique([phone, userId])
+  @@index([userId])
+}
+
+// Supplier model (Phase 2)
+model Supplier {
+  id            Int      @id @default(autoincrement())
+  name          String
+  contactPerson String?
+  phone         String
+  address       String?
+  email         String?
+  notes         String?
+  userId        Int
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id])
+  products Product[]
+
+  @@index([userId])
+}
+
+// Expense model (Phase 2)
+model Expense {
+  id          Int      @id @default(autoincrement())
+  type        String
+  amount      Float
+  date        DateTime
+  description String?
+  userId      Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, date])
+}
+
+// LoginHistory model (for security tracking)
+model LoginHistory {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  loginAt   DateTime @default(now())
+  ipAddress String?
+  userAgent String?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId, loginAt])
+}
+
+// Admin model (for developer/platform owner)
+model Admin {
+  id          Int       @id @default(autoincrement())
+  username    String    @unique
+  password    String
+  role        String    @default("admin")
+  lastLogin   DateTime?
+}
